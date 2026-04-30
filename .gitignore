@@ -19,3 +19,5 @@ tryme.js
 # Secrets & credentials
 *.pem
 *.key
+
+public
