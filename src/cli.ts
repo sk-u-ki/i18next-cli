@@ -19,13 +19,15 @@ import { runRenameKey } from './rename-key.js'
 import { runInstrumenter } from './instrumenter/index.js'
 import { getNestedKeys, getNestedValue } from './utils/nested-object.js'
 import type { I18nextToolkitConfig, TranslationResult } from './types.js'
+import { getCliPackageMeta } from './cli-package-meta.js'
 
+const cliPkg = getCliPackageMeta()
 const program = new Command()
 
 program
-  .name('i18next-cli')
-  .description('A unified, high-performance i18next CLI.')
-  .version('__packageVersion__') // This string is replaced with the actual version at build time by rollup
+  .name(cliPkg.name)
+  .description(cliPkg.description)
+  .version(cliPkg.version)
 
 // new: global config override option
 program.option('-c, --config <path>', 'Path to i18next-cli config file (overrides detection)')

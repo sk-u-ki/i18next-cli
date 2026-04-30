@@ -2,6 +2,7 @@ import inquirer from 'inquirer'
 import { writeFile, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { detectConfig } from './heuristic-config.js'
+import { getCliPackageMeta } from './cli-package-meta.js'
 
 /**
  * Determines if the current project is configured as an ESM project.
@@ -35,7 +36,7 @@ async function isEsmProject (): Promise<boolean> {
  * When running via `npx` without a local install, `defineConfig` would not be available
  * at runtime, so the generated config should fall back to a plain object export.
  *
- * @returns Promise resolving to true if i18next-cli is in dependencies or devDependencies
+ * @returns Promise resolving to true if this CLI package is in dependencies or devDependencies
  */
 async function isCliLocallyInstalled (): Promise<boolean> {
   try {
@@ -43,7 +44,7 @@ async function isCliLocallyInstalled (): Promise<boolean> {
     const content = await readFile(packageJsonPath, 'utf-8')
     const packageJson = JSON.parse(content)
     const deps = { ...packageJson.dependencies, ...packageJson.devDependencies }
-    return !!deps['i18next-cli']
+    return !!deps[getCliPackageMeta().name]
   } catch {
     return false
   }
@@ -91,7 +92,7 @@ async function isTypeScriptProject (): Promise<boolean> {
  * ```
  */
 export async function runInit () {
-  console.log('Welcome to the i18next-cli setup wizard!')
+  console.log(`Welcome to the ${getCliPackageMeta().name} setup wizard!`)
   console.log('Scanning your project for a recommended configuration...')
 
   const detectedConfig = await detectConfig()
@@ -191,34 +192,35 @@ export async function runInit () {
   }
 
   const isLocallyInstalled = await isCliLocallyInstalled()
+  const pkgName = getCliPackageMeta().name
 
   let fileContent = ''
   if (isLocallyInstalled) {
-    // i18next-cli is a local dependency — use defineConfig for type-safety
+    // Local dependency — use defineConfig for type-safety
     if (isTypeScript) {
-      fileContent = `import { defineConfig } from 'i18next-cli'
+      fileContent = `import { defineConfig } from '${pkgName}'
 
 export default defineConfig(${toJs(configObject)})`
     } else if (isEsm) {
-      fileContent = `import { defineConfig } from 'i18next-cli'
+      fileContent = `import { defineConfig } from '${pkgName}'
 
-/** @type {import('i18next-cli').I18nextToolkitConfig} */
+/** @type {import('${pkgName}').I18nextToolkitConfig} */
 export default defineConfig(${toJs(configObject)})`
     } else { // CJS
-      fileContent = `const { defineConfig } = require('i18next-cli')
+      fileContent = `const { defineConfig } = require('${pkgName}')
 
-/** @type {import('i18next-cli').I18nextToolkitConfig} */
+/** @type {import('${pkgName}').I18nextToolkitConfig} */
 module.exports = defineConfig(${toJs(configObject)})`
     }
   } else {
-    // i18next-cli is not locally installed (e.g. npx) — plain config object
+    // Not locally installed (e.g. npx) — plain config object
     if (isTypeScript) {
       fileContent = `export default ${toJs(configObject)}`
     } else if (isEsm) {
-      fileContent = `/** @type {import('i18next-cli').I18nextToolkitConfig} */
+      fileContent = `/** @type {import('${pkgName}').I18nextToolkitConfig} */
 export default ${toJs(configObject)}`
     } else { // CJS
-      fileContent = `/** @type {import('i18next-cli').I18nextToolkitConfig} */
+      fileContent = `/** @type {import('${pkgName}').I18nextToolkitConfig} */
 module.exports = ${toJs(configObject)}`
     }
   }
