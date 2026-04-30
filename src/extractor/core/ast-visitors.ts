@@ -5,6 +5,8 @@ import { ExpressionResolver } from '../parsers/expression-resolver.js'
 import { CallExpressionHandler } from '../parsers/call-expression-handler.js'
 import { JSXHandler } from '../parsers/jsx-handler.js'
 
+// t('hello, world', { en: 'Hello, world', ua: 'Привіт, світ' })
+
 /**
  * AST visitor class that traverses JavaScript/TypeScript syntax trees to extract translation keys.
  *
