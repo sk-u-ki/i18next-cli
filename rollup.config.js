@@ -1,4 +1,3 @@
-import replace from '@rollup/plugin-replace'
 // import terser from '@rollup/plugin-terser'
 import typescript from '@rollup/plugin-typescript'
 import { readFileSync, writeFileSync, chmodSync } from 'node:fs'
@@ -33,11 +32,6 @@ export default {
     ...Object.keys(pkg.dependencies || {})
   ],
   plugins: [
-    replace({
-      __packageName: pkg.name,
-      __packageVersion__: pkg.version,
-      preventAssignment: true
-    }),
     typescript(),
     // terser(), // minifies generated bundles
     {
