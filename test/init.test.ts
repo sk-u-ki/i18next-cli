@@ -3,6 +3,7 @@ import { vi, describe, it, expect, beforeEach, afterEach, Mock } from 'vitest'
 import { runInit } from '../src/init'
 import inquirer from 'inquirer'
 import { resolve } from 'path'
+import { name as pkgName } from '../package.json'
 
 // Mocks
 vi.mock('fs/promises', async () => {
@@ -33,7 +34,7 @@ describe('init', () => {
     vi.restoreAllMocks()
   })
 
-  it('should create a TypeScript config file (without local i18next-cli)', async () => {
+  it('should create a TypeScript config file (without local CLI package)', async () => {
     vi.mocked(inquirer.prompt).mockResolvedValue(mockAnswers)
 
     await runInit()
@@ -41,7 +42,7 @@ describe('init', () => {
     const configPath = resolve('/', 'i18next.config.ts')
     const content = await vol.promises.readFile(configPath, 'utf-8')
 
-    // No local i18next-cli → plain export, no defineConfig
+    // No local package → plain export, no defineConfig
     expect(content).not.toContain('defineConfig')
     expect(content).toContain('export default')
     expect(content).toContain('locales: [\n    "en",\n    "de"\n  ]')
@@ -50,7 +51,7 @@ describe('init', () => {
 
   it('should create a TypeScript config file with defineConfig when locally installed', async () => {
     vol.fromJSON({
-      '/package.json': JSON.stringify({ devDependencies: { 'i18next-cli': '^1.0.0' } }),
+      '/package.json': JSON.stringify({ devDependencies: { [pkgName]: '^1.0.0' } }),
     })
     vi.mocked(inquirer.prompt).mockResolvedValue(mockAnswers)
 
@@ -59,7 +60,7 @@ describe('init', () => {
     const configPath = resolve('/', 'i18next.config.ts')
     const content = await vol.promises.readFile(configPath, 'utf-8')
 
-    expect(content).toContain("import { defineConfig } from 'i18next-cli'")
+    expect(content).toContain(`import { defineConfig } from '${pkgName}'`)
     expect(content).toContain('export default defineConfig')
     expect(content).toContain('locales: [\n    "en",\n    "de"\n  ]')
     expect(content).toContain('input: "src/**/*.tsx"')
@@ -71,7 +72,7 @@ describe('init', () => {
       fileType: 'JavaScript (i18next.config.js)',
     })
 
-    // CJS project without local i18next-cli
+    // CJS project without local CLI package
     vol.fromJSON({
       '/package.json': JSON.stringify({ name: 'my-cjs-project' }),
     })
@@ -81,7 +82,7 @@ describe('init', () => {
     const configPath = resolve('/', 'i18next.config.js')
     const content = await vol.promises.readFile(configPath, 'utf-8')
 
-    expect(content).toContain('/** @type {import(\'i18next-cli\').I18nextToolkitConfig} */')
+    expect(content).toContain(`/** @type {import('${pkgName}').I18nextToolkitConfig} */`)
     expect(content).toContain('module.exports =')
     expect(content).not.toContain('export default')
     // No local install → no defineConfig / require
@@ -96,7 +97,7 @@ describe('init', () => {
     })
 
     vol.fromJSON({
-      '/package.json': JSON.stringify({ name: 'my-cjs-project', devDependencies: { 'i18next-cli': '^1.0.0' } }),
+      '/package.json': JSON.stringify({ name: 'my-cjs-project', devDependencies: { [pkgName]: '^1.0.0' } }),
     })
 
     await runInit()
@@ -104,7 +105,7 @@ describe('init', () => {
     const configPath = resolve('/', 'i18next.config.js')
     const content = await vol.promises.readFile(configPath, 'utf-8')
 
-    expect(content).toContain("const { defineConfig } = require('i18next-cli')")
+    expect(content).toContain(`const { defineConfig } = require('${pkgName}')`)
     expect(content).toContain('module.exports = defineConfig')
   })
 
@@ -114,7 +115,7 @@ describe('init', () => {
       fileType: 'JavaScript (i18next.config.js)',
     })
 
-    // ESM project without local i18next-cli
+    // ESM project without local CLI package
     vol.fromJSON({
       '/package.json': JSON.stringify({ type: 'module' }),
     })
@@ -124,7 +125,7 @@ describe('init', () => {
     const configPath = resolve('/', 'i18next.config.js')
     const content = await vol.promises.readFile(configPath, 'utf-8')
 
-    expect(content).toContain('/** @type {import(\'i18next-cli\').I18nextToolkitConfig} */')
+    expect(content).toContain(`/** @type {import('${pkgName}').I18nextToolkitConfig} */`)
     expect(content).toContain('export default')
     expect(content).not.toContain('module.exports')
     // No local install → no defineConfig / import
@@ -138,7 +139,7 @@ describe('init', () => {
     })
 
     vol.fromJSON({
-      '/package.json': JSON.stringify({ type: 'module', dependencies: { 'i18next-cli': '^1.0.0' } }),
+      '/package.json': JSON.stringify({ type: 'module', dependencies: { [pkgName]: '^1.0.0' } }),
     })
 
     await runInit()
@@ -146,7 +147,7 @@ describe('init', () => {
     const configPath = resolve('/', 'i18next.config.js')
     const content = await vol.promises.readFile(configPath, 'utf-8')
 
-    expect(content).toContain("import { defineConfig } from 'i18next-cli'")
+    expect(content).toContain(`import { defineConfig } from '${pkgName}'`)
     expect(content).toContain('export default defineConfig')
   })
 

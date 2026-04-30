@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { description, name } from '../package.json'
+import { description, name, version } from '../package.json'
 
 describe('CLI command config', () => {
   let program: Command
@@ -24,8 +24,8 @@ describe('CLI command config', () => {
   })
 
   it('should have the correct version configured', async () => {
-    // `__packageVersion__` is replaced with the actual version at build time by rollup
-    expect(program.version()).toBe('__packageVersion__')
+    // Version is read from this repo's package.json at runtime (see src/cli-package-meta.ts)
+    expect(program.version()).toBe(version)
   })
 
   it('should have the correct description configured', async () => {
