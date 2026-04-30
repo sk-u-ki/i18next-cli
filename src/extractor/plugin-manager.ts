@@ -142,13 +142,23 @@ export function createPluginContext (
 
         // If existing value is a generic fallback and new value is specific, replace it
         if (isExistingGenericFallback && !isNewGenericFallback) {
+          const mergedLocaleDefaults =
+            keyInfo.localeDefaults || existingKey.localeDefaults
+              ? { ...existingKey.localeDefaults, ...keyInfo.localeDefaults }
+              : undefined
           allKeys.set(uniqueKey, {
             ...keyInfo,
             ns: storedNs || config.extract?.defaultNS || 'translation',
             nsIsImplicit,
             defaultValue,
+            ...(mergedLocaleDefaults ? { localeDefaults: mergedLocaleDefaults } : {}),
             locations: existingKey.locations // Preserve merged locations
           })
+        } else if (keyInfo.localeDefaults && Object.keys(keyInfo.localeDefaults).length > 0) {
+          existingKey.localeDefaults = {
+            ...(existingKey.localeDefaults ?? {}),
+            ...keyInfo.localeDefaults
+          }
         }
         // Otherwise keep the existing one
       } else {

@@ -73,4 +73,34 @@ describe('extractor: extractFromComments option', () => {
     expect(file!.newTranslations).not.toHaveProperty('comment')
     expect(file!.newTranslations).not.toHaveProperty('block')
   })
+
+  it('should extract per-locale strings from comment locale map', async () => {
+    const sampleCode = `
+      // t('greeting.hello', { en: 'Hello', ua: 'Привіт' })
+    `
+    vol.fromJSON({ '/src/App.tsx': sampleCode })
+
+    const config: I18nextToolkitConfig = {
+      locales: ['en', 'ua'],
+      extract: {
+        input: ['src/**/*.{ts,tsx}'],
+        output: 'locales/{{language}}/{{namespace}}.json',
+        defaultNS: 'translation',
+        primaryLanguage: 'en',
+      },
+    }
+
+    const results = await extract(config)
+    const en = results.find(r => pathEndsWith(r.path, '/locales/en/translation.json'))
+    const ua = results.find(r => pathEndsWith(r.path, '/locales/ua/translation.json'))
+
+    expect(en).toBeDefined()
+    expect(ua).toBeDefined()
+    expect(en!.newTranslations).toEqual({
+      greeting: { hello: 'Hello' },
+    })
+    expect(ua!.newTranslations).toEqual({
+      greeting: { hello: 'Привіт' },
+    })
+  })
 })

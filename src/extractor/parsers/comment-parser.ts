@@ -42,6 +42,7 @@ export function extractKeysFromComments (
   const rawPreservePatterns = config.extract.preservePatterns || []
   const preservePatterns = rawPreservePatterns.map(globToRegex)
   const nsSeparator = config.extract.nsSeparator ?? ':'
+  const primaryLanguage = config.extract.primaryLanguage || config.locales[0] || 'en'
 
   const matchesPreserve = (key: string, ns?: string) => {
     // 1) regex-style matches (existing behavior)
@@ -77,7 +78,10 @@ export function extractKeysFromComments (
       let ns: string | false | undefined
       const remainder = text.slice(match.index + match[0].length)
 
-      const defaultValue = parseDefaultValueFromComment(remainder)
+      const localeMap = tryParseLocaleMapFromComment(remainder, config.locales, primaryLanguage)
+      const defaultValue = localeMap?.defaultValue ?? parseDefaultValueFromComment(remainder)
+      const localeDefaults = localeMap?.localeDefaults
+      const explicitDefaultFromLocaleMap = Boolean(localeMap)
       const context = parseContextFromComment(remainder)
       const count = parseCountFromComment(remainder)
       const ordinal = parseOrdinalFromComment(remainder)
@@ -145,37 +149,42 @@ export function extractKeysFromComments (
       // 4. Final fallback to configured default namespace
       if (!ns) ns = config.extract.defaultNS
 
+      const commentExtras =
+        localeDefaults !== undefined
+          ? { localeDefaults, ...(explicitDefaultFromLocaleMap ? { explicitDefault: true as const } : {}) }
+          : {}
+
       // 5. Handle context and count combinations based on disablePlurals setting
       if (config.extract.disablePlurals) {
         // When plurals are disabled, ignore count for key generation
         if (context) {
           // Only generate context variants (no base key when context is static)
-          pluginContext.addKey({ key: `${key}_${context}`, ns, defaultValue: defaultValue ?? key })
+          pluginContext.addKey({ key: `${key}_${context}`, ns, defaultValue: defaultValue ?? key, ...commentExtras })
         } else {
           // Simple key (ignore count)
-          pluginContext.addKey({ key, ns, defaultValue: defaultValue ?? key })
+          pluginContext.addKey({ key, ns, defaultValue: defaultValue ?? key, ...commentExtras })
         }
       } else {
         // Original plural handling logic when plurals are enabled
         if (context && count) {
           // Generate context+plural combinations
-          generateContextPluralKeys(key, defaultValue ?? key, ns, context, pluginContext, config, isOrdinal)
+          generateContextPluralKeys(key, defaultValue ?? key, ns, context, pluginContext, config, isOrdinal, localeDefaults, explicitDefaultFromLocaleMap)
 
           // Only generate base plural forms if generateBasePluralForms is not disabled
           const shouldGenerateBaseForms = config.extract?.generateBasePluralForms !== false
           if (shouldGenerateBaseForms) {
-            generatePluralKeys(key, defaultValue ?? key, ns, pluginContext, config, isOrdinal)
+            generatePluralKeys(key, defaultValue ?? key, ns, pluginContext, config, isOrdinal, localeDefaults, explicitDefaultFromLocaleMap)
           }
         } else if (context) {
           // Just context variants
-          pluginContext.addKey({ key, ns, defaultValue: defaultValue ?? key })
-          pluginContext.addKey({ key: `${key}_${context}`, ns, defaultValue: defaultValue ?? key })
+          pluginContext.addKey({ key, ns, defaultValue: defaultValue ?? key, ...commentExtras })
+          pluginContext.addKey({ key: `${key}_${context}`, ns, defaultValue: defaultValue ?? key, ...commentExtras })
         } else if (count) {
           // Just plural variants
-          generatePluralKeys(key, defaultValue ?? key, ns, pluginContext, config, isOrdinal)
+          generatePluralKeys(key, defaultValue ?? key, ns, pluginContext, config, isOrdinal, localeDefaults, explicitDefaultFromLocaleMap)
         } else {
           // Simple key
-          pluginContext.addKey({ key, ns, defaultValue: defaultValue ?? key })
+          pluginContext.addKey({ key, ns, defaultValue: defaultValue ?? key, ...commentExtras })
         }
       }
     }
@@ -185,14 +194,27 @@ export function extractKeysFromComments (
 /**
  * Generates plural keys for a given base key
  */
+function pluralCommentExtras (
+  localeDefaults: Record<string, string> | undefined,
+  explicitDefault: boolean
+): { localeDefaults: Record<string, string>; explicitDefault?: true } | Record<string, never> {
+  if (!localeDefaults) return {}
+  return explicitDefault
+    ? { localeDefaults, explicitDefault: true }
+    : { localeDefaults }
+}
+
 function generatePluralKeys (
   key: string,
   defaultValue: string,
   ns: string | false | undefined,
   pluginContext: PluginContext,
   config: I18nextToolkitConfig,
-  isOrdinal = false
+  isOrdinal = false,
+  localeDefaults?: Record<string, string>,
+  explicitLocaleMap?: boolean
 ): void {
+  const pExtras = pluralCommentExtras(localeDefaults, Boolean(explicitLocaleMap))
   try {
     const type = isOrdinal ? 'ordinal' : 'cardinal'
 
@@ -222,7 +244,8 @@ function generatePluralKeys (
         key,
         ns,
         defaultValue,
-        hasCount: true
+        hasCount: true,
+        ...pExtras
       })
       return
     }
@@ -238,12 +261,13 @@ function generatePluralKeys (
         ns,
         defaultValue,
         hasCount: true,
-        isOrdinal
+        isOrdinal,
+        ...pExtras
       })
     }
   } catch (e) {
     // Fallback if Intl API fails
-    pluginContext.addKey({ key, ns, defaultValue })
+    pluginContext.addKey({ key, ns, defaultValue, ...pExtras })
   }
 }
 
@@ -257,8 +281,11 @@ function generateContextPluralKeys (
   context: string,
   pluginContext: PluginContext,
   config: I18nextToolkitConfig,
-  isOrdinal = false
+  isOrdinal = false,
+  localeDefaults?: Record<string, string>,
+  explicitLocaleMap?: boolean
 ): void {
+  const pExtras = pluralCommentExtras(localeDefaults, Boolean(explicitLocaleMap))
   try {
     const type = isOrdinal ? 'ordinal' : 'cardinal'
 
@@ -292,13 +319,140 @@ function generateContextPluralKeys (
         ns,
         defaultValue,
         hasCount: true,
-        isOrdinal
+        isOrdinal,
+        ...pExtras
       })
     }
   } catch (e) {
     // Fallback if Intl API fails
-    pluginContext.addKey({ key: `${key}_${context}`, ns, defaultValue })
+    pluginContext.addKey({ key: `${key}_${context}`, ns, defaultValue, ...pExtras })
   }
+}
+
+const RESERVED_T_OPTION_KEYS = new Set([
+  'defaultValue',
+  'ns',
+  'context',
+  'count',
+  'ordinal',
+  'returnObjects',
+  'keySeparator',
+  'nsSeparator',
+  'interpolation',
+  'lng',
+  'fallbackLng',
+])
+
+/**
+ * Returns the inner slice of the first `{ ... }` object after optional leading comma,
+ * or null if not found. Handles strings and brace nesting.
+ *
+ * @internal
+ */
+function extractFirstObjectLiteralInner (remainder: string): string | null {
+  const open = /^\s*,\s*\{/.exec(remainder)
+  if (!open) return null
+  const startBrace = open.index + open[0].length - 1
+  let depth = 1
+  let i = startBrace + 1
+  let inStr: "'" | '"' | '`' | null = null
+  let escaped = false
+  for (; i < remainder.length; i++) {
+    const c = remainder[i]
+    if (inStr) {
+      if (escaped) {
+        escaped = false
+        continue
+      }
+      if (c === '\\') {
+        escaped = true
+        continue
+      }
+      if (c === inStr) {
+        inStr = null
+        continue
+      }
+      continue
+    }
+    if (c === '\'' || c === '"' || c === '`') {
+      inStr = c
+      continue
+    }
+    if (c === '{') depth++
+    else if (c === '}') {
+      depth--
+      if (depth === 0) {
+        return remainder.slice(startBrace + 1, i)
+      }
+    }
+  }
+  return null
+}
+
+function normalizeLocaleTag (s: string): string {
+  return s.replace(/_/g, '-').toLowerCase()
+}
+
+/**
+ * Parses `ident: 'string'` pairs from object literal body (no outer braces).
+ *
+ * @internal
+ */
+function parseStringPropertyPairs (inner: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  const prop = /([a-zA-Z_$][\w$]*)\s*:\s*(['"])((?:\\.|(?!\2).)*)\2/g
+  let m: RegExpExecArray | null
+  while ((m = prop.exec(inner)) !== null) {
+    out[m[1]] = m[3]
+  }
+  return out
+}
+
+/**
+ * When the second argument is `{ en: '…', ua: '…' }` (no reserved i18next option keys),
+ * returns locale strings limited to configured locales. Otherwise returns null.
+ *
+ * @internal
+ */
+export function tryParseLocaleMapFromComment (
+  remainder: string,
+  configLocales: string[],
+  primaryLanguage: string
+): { localeDefaults: Record<string, string>; defaultValue: string } | null {
+  const inner = extractFirstObjectLiteralInner(remainder)
+  if (!inner) return null
+
+  for (const name of RESERVED_T_OPTION_KEYS) {
+    const re = new RegExp(`(?:^|[,{]\\s*)${name}\\s*:`, 'm')
+    if (re.test(inner)) return null
+  }
+
+  const rawPairs = parseStringPropertyPairs(inner)
+  if (Object.keys(rawPairs).length === 0) return null
+
+  const localeDefaults: Record<string, string> = {}
+  for (const k of Object.keys(rawPairs)) {
+    if (RESERVED_T_OPTION_KEYS.has(k)) return null
+    const hit = configLocales.find(loc => normalizeLocaleTag(loc) === normalizeLocaleTag(k))
+    if (hit) localeDefaults[hit] = rawPairs[k]
+  }
+  if (Object.keys(localeDefaults).length === 0) return null
+
+  const primaryCanon =
+    configLocales.find(loc => normalizeLocaleTag(loc) === normalizeLocaleTag(primaryLanguage)) ??
+    configLocales[0]
+  let defaultValue: string | undefined = primaryCanon ? localeDefaults[primaryCanon] : undefined
+  if (defaultValue === undefined) {
+    for (const loc of configLocales) {
+      if (localeDefaults[loc] !== undefined) {
+        defaultValue = localeDefaults[loc]
+        break
+      }
+    }
+  }
+  if (defaultValue === undefined) defaultValue = Object.values(localeDefaults)[0]
+
+  return { localeDefaults, defaultValue }
 }
 
 /**

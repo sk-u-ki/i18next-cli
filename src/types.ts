@@ -620,6 +620,12 @@ export interface ExtractedKey {
   /** Whether the defaultValue was explicitly provided in source code (vs derived from children/key) */
   explicitDefault?: boolean;
 
+  /**
+   * Per-locale default strings (e.g. from `// t('key', { en: '…', ua: '…' })` in comments).
+   * Keys should match entries in `config.locales` (case-insensitive; `_` and `-` normalized).
+   */
+  localeDefaults?: Record<string, string>;
+
   /** True when the extractor returned an already-expanded plural form (e.g. "key_one") */
   isExpandedPlural?: boolean
 

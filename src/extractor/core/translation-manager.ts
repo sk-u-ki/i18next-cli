@@ -14,6 +14,21 @@ const chars = [' ', ',', '?', '!', ';']
 
 const pluralForms = ['zero', 'one', 'two', 'few', 'many', 'other']
 
+function normalizeLocaleTag (s: string): string {
+  return s.replace(/_/g, '-').toLowerCase()
+}
+
+/** Per-locale string from extraction (e.g. comment locale map), matched loosely to file locale. */
+function pickLocaleDefault (localeDefaults: Record<string, string> | undefined, locale: string): string | undefined {
+  if (!localeDefaults) return undefined
+  if (localeDefaults[locale] !== undefined) return localeDefaults[locale]
+  const n = normalizeLocaleTag(locale)
+  for (const [k, v] of Object.entries(localeDefaults)) {
+    if (normalizeLocaleTag(k) === n) return v
+  }
+  return undefined
+}
+
 /**
  * Converts a glob pattern to a regular expression for matching keys
  * @param glob - The glob pattern to convert
@@ -661,7 +676,7 @@ function buildNewTranslationsForNs (
   }
 
   // 1. Build the object first, without any sorting.
-  for (const { key, defaultValue, explicitDefault, hasCount, isExpandedPlural, isOrdinal } of filteredKeys) {
+  for (const { key, defaultValue, explicitDefault, hasCount, isExpandedPlural, isOrdinal, localeDefaults } of filteredKeys) {
     // If this is a base plural key (hasCount true but not an already-expanded variant)
     // and we detected explicit expanded variants for this base, skip expanding the base.
     if (hasCount && !isExpandedPlural) {
@@ -713,7 +728,10 @@ function buildNewTranslationsForNs (
               if (existingVariantValue === undefined) {
                 // Use the default value for secondary locale forms
                 let resolvedValue: string
-                if (typeof defaultValue === 'string') {
+                const lp = pickLocaleDefault(localeDefaults, locale)
+                if (lp !== undefined) {
+                  resolvedValue = lp
+                } else if (typeof defaultValue === 'string') {
                   resolvedValue = defaultValue
                 } else {
                   resolvedValue = resolveDefaultValue(emptyDefaultValue, String(base), namespace || config?.extract?.defaultNS || 'translation', locale, defaultValue)
@@ -759,7 +777,10 @@ function buildNewTranslationsForNs (
                 if (existingVariantValue === undefined) {
                   // Prefer explicit defaultValue extracted for this key; fall back to configured defaultValue
                   let resolvedValue: string
-                  if (typeof defaultValue === 'string') {
+                  const lp = pickLocaleDefault(localeDefaults, locale)
+                  if (lp !== undefined) {
+                    resolvedValue = lp
+                  } else if (typeof defaultValue === 'string') {
                     resolvedValue = defaultValue
                   } else {
                     resolvedValue = resolveDefaultValue(emptyDefaultValue, String(base), namespace || config?.extract?.defaultNS || 'translation', locale, defaultValue)
@@ -833,8 +854,12 @@ function buildNewTranslationsForNs (
 
     let valueToSet: string
 
+    const localePick = pickLocaleDefault(localeDefaults, locale)
+
     if (existingValue === undefined || isStaleObject) {
-      if (locale === primaryLanguage) {
+      if (localePick !== undefined) {
+        valueToSet = localePick
+      } else if (locale === primaryLanguage) {
         if (syncPrimaryWithDefaults) {
           valueToSet =
             (defaultValue && (!isDerivedDefault || trustDerivedDefaults))
