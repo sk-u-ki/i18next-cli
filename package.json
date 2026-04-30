@@ -1,6 +1,6 @@
 {
   "name": "i18next-cli-comment",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Unofficial fork of i18next-cli: same high-performance i18next CLI, with extra comment-based extraction (e.g. per-locale maps in // t(...) comments).",
   "type": "module",
   "bin": {
