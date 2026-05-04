@@ -44,8 +44,9 @@ npx i18next-cli-comment init
 | Option    | Type     | Description                                       |
 | --------- | -------- | ------------------------------------------------- |
 | `locales` | string[] | List of supported languages                       |
-| `output`  | string   | Output path template (`$LOCALE` will be replaced) |
 | `input`   | string   | Input path which directory tracking               |
+| `output`  | string   | Output path template (must included {{language}}/{{namespace}}.json) |
+
 
 
 ---
