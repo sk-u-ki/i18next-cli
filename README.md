@@ -23,7 +23,7 @@ npm install i18next-cli-comment --save-dev
 or
 
 ```bash
-yarn add i18next-cli-language-tracker -D
+yarn add i18next-cli-comment -D
 ```
 
 ---
